@@ -1,116 +1,121 @@
 # amplifica-infra
 
-Repositório que contém a infraestrutura como código do projeto Amplifica
+Repositório que provisiona a infraestrutura e as aplicações do projeto
+amplifica.
 
-## Autenticação
+São três componentes.
 
-Antes de mais nada, para interagir via CLI na conta d'AzMina na AWS é preciso
-usar MFA.
+1. Servidor
+2. Dashboard (shiny app)
+3. Crawler (código R/Rstudio/Rserver)
 
-Para o corrente projeto, utilizaremos o usuário da aws "amplifica-bot", criado
-com permissões estritas para as necessidades do projeto.
+## 1. Servidor
 
-Para autenticação usando MFA, é recomendada a leitura dos seguintes materiais:
-- https://levelup.gitconnected.com/aws-cli-automation-for-temporary-mfa-credentials-31853b1a8692
-- https://aws.amazon.com/pt/premiumsupport/knowledge-center/authenticate-mfa-cli/
+O Servidor é provisionado utilizando terraform e o provisionamento acontece na
+AWS, usando o serviço chamado _lightsail_ da AWS.
 
-No presente caso, estamos usando dois scripts para automatizar a autenticação:
+O código de provisionamento está na pasta "terraform".
 
-### _aws_mfa
+Além de criar uma instância do lightsail, também temos um IP "fixo" (caso a
+instância seja reprovisionada, mantém-se o IP público) e também é feita a
+configuração do domínio "amplifica.azmina.com.br", gerenciado no Cloudflare.
 
-Script que faz a autenticação e gera um token temporário de acesso, salvando-o
-em um arquivo ("~/.aws/token_file" por padrão):
+Para o provisionamento da instância utilizamos o "userdata" passando o script
+que se encontra em `terraform/scripts/bootstrap.sh` que é executado durante o
+boot da instância. Esse script é utilizado para fazer as configurações
+necessárias do servidor, incluindo instalar o shiny server e o rstudio server
+(dentre outras).
 
-<details>
-<summary> Código do shell script `_aws_mfa`:</summary>
+Caso seja necessário instalar pacotes R para as aplicações que serão executadas
+neste servidor, este é o arquivo a ser modificado.
 
-```
-#!/bin/bash
-#
-# Sample for getting temp session token from AWS STS
-#
-# aws --profile youriamuser sts get-session-token --duration 3600 \
-# --serial-number arn:aws:iam::012345678901:mfa/user --token-code 012345
-#
-# Once the temp token is obtained, you'll need to feed the following environment
-# variables to the aws-cli:
-#
-# export AWS_ACCESS_KEY_ID='KEY'
-# export AWS_SECRET_ACCESS_KEY='SECRET'
-# export AWS_SESSION_TOKEN='TOKEN'
+## 2. Dashboard (Shiny App)
 
-AWS_CLI=$(command -v aws)
+No projeto teremos um dashboard feito com shiny.
+O código deste dashboard será automaticamente carregado deste repositório no
+servidor. O código deve ficar no diretório `src/dashboard/` e será acessível em:
+https://amplifica.azmina.com.br:3838
 
-if ! command -v aws; then
-  echo "AWS CLI is not installed; exiting"
-  exit 1
-else
-  echo "Using AWS CLI found at ${AWS_CLI}"
-fi
+No CI temo um job que copia o código deste repositório no servidor.
 
-# 1 or 2 args ok
-if [[ $# -ne 1 && $# -ne 2 ]]; then
-  echo "Usage: $0 <MFA_TOKEN_CODE> <AWS_CLI_PROFILE>"
-  echo "Where:"
-  echo "   <MFA_TOKEN_CODE> = Code from virtual MFA device"
-  echo "   <AWS_CLI_PROFILE> = aws-cli profile usually in ${HOME}/.aws/config"
-  exit 2
-fi
+## 3. Crawler
 
-echo "Reading config..."
-if [ ! -r ~/.aws/mfa.cfg ]; then
-  echo "No config found.  Please create your mfa.cfg.  See README.txt for more info."
-  exit 2
-fi
+O terceiro componente é o crawler, que vai buscar dados do twitter e salvar no
+banco de dados.
+Por hora, a execução do crawler ainda não está automatizada, mas caso arquivos
+de código R seja adicionados no diretório `src/crawler` do repositório ele será
+copiado para a home do usuário `amplifica`. Este é o único usuário com acesso ao
+Rstudio instalado no servidor e acessível em https://amplifica.azmina.com.br
 
-AWS_CLI_PROFILE=${2:-default}
-if [[ "${AWS_CLI_PROFILE}" == "default" ]]; then
-    if [[ "${AWS_PROFILE:-undefined}" != "undefined" ]]; then
-        AWS_CLI_PROFILE="${AWS_PROFILE}"
-    fi
-fi
+# Configurações de CI
 
-MFA_TOKEN_CODE=$1
-if [[ "${AWS_MFA:-none}" == "none" ]]; then
-    ARN_OF_MFA=$(grep "^${AWS_CLI_PROFILE}" ~/.aws/mfa.cfg | cut -d '=' -f2- | tr -d '"')
-else
-    ARN_OF_MFA="${AWS_MFA}"
-fi
+## Secrets (https://github.com/institutoazmina/amplifica-infra/settings/secrets/actions)
 
-echo "AWS-CLI Profile: ${AWS_CLI_PROFILE}"
-echo "MFA ARN: ${ARN_OF_MFA}"
-echo "MFA Token Code: ${MFA_TOKEN_CODE}"
+Para configurar este CI corretamente são necessárias os seguintes secrets:
+    - AWS_DEFAULT_REGION
+    - CLOUDFLARE_ACCOUNT_ID
+        - https://www.youtube.com/watch?v=XkDBADKiKC0
+    - CLOUDFLARE_API_TOKEN
+        - https://developers.cloudflare.com/api/tokens/create
+        - Aqui só precisamos de permissão de "EDIT DNS".
+    - SSH_PRIV_KEY
+        - Essa é uma chave SSH criada manualmente no padrão ed25519:
+        - `ssh-keygen -t ed25519 -C "<email>"`
 
-echo "Your Temporary Creds:"
-if [[ ! -f ~/.aws/token_file ]]; then
-    touch ~/.aws/token_file
-fi
-aws --profile "${AWS_CLI_PROFILE}" sts get-session-token --duration 129600 \
-  --serial-number "${ARN_OF_MFA}" --token-code "${MFA_TOKEN_CODE}" --output text \
-  | awk '{printf("export AWS_ACCESS_KEY_ID=\"%s\"\nexport AWS_SECRET_ACCESS_KEY=\"%s\"\nexport AWS_SESSION_TOKEN=\"%s\"\nexport AWS_SECURITY_TOKEN=\"%s\"\n",$2,$4,$5,$5)}' | tee ~/.aws/token_file
-```
-</details>
+## Bucket S3 para o estado do terraform
 
-Para facilitar o uso do script acima, defina duas variáveis de ambiente:
-AWS_PROFILE e AWS_MFA, com o respectivo profile e ID (ARN) do MFA a ser
-utilizado.
+Precisamos criar um S3 bucket na AWS para armazenar o arquivo de estado do
+Terraform. Vamos chamá-lo de `<sample-nosso-bucket-do-terraform>`.
 
-Além dele, temos uma outra função/alias que serve para chamar o script acima e
-carregar o token gerado no ambiente.
+## AWS Role
 
-<details>
-<summary>setToken()</summary>
-setToken() {
-    <path_to__aws_mfa_script> $1 $2
-    let EX_CODE=?
-    if [ $EX_CODE -ne 0 ]; then
-        return $EX_CODE
-    fi
-    source ~/.aws/token_file
-    echo "Your creds have been set in your env."
-}
-alias mfa=setToken
-</details>
+Para que o CI do github consiga interagir com a AWS, precisamos de algumas
+configurações.
 
-Finalmente, para usar basta chamar:
-`mfa <token>` com o token TOTP do MFA utilizado.
+Primeiro é preciso configurar um OpenID Connect (OIDC) provider:
+https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services
+
+Depois, para o Role do IAM criado precisamos configurar algumas permissões:
+
+1. lightsail (full access)
+    ```
+    {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Sid": "VisualEditor0",
+                "Effect": "Allow",
+                "Action": "lightsail:*",
+                "Resource": "*"
+            }
+        ]
+    }
+    ```
+2. Acesso ao bucket do S3 que armazenará o estado do terraform:
+    ```
+    {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Sid": "VisualEditor0",
+                "Effect": "Allow",
+                "Action": "s3:ListBucket",
+                "Resource": "arn:aws:s3:::<sample-nosso-bucket-do-terraform>"
+            },
+            {
+                "Sid": "VisualEditor1",
+                "Effect": "Allow",
+                "Action": "s3:*Object",
+                "Resource": "arn:aws:s3:::<sample-nosso-bucket-do-terraform>/*"
+            }
+        ]
+    }
+    ```
+
+## Pontos de atenção
+
+Como temos automação para os códigos do diretório `src/dashboard` e
+`src/crwaler`, eventuais alterações nestes arquivos feitas diretamente no
+servidor (via ssh ou via Rstudio web) serão perdidas quando o CI for executado.
+Então cuidado para não perder seu trabalho, e lembre-se sempre de mantê-lo
+"sincronizado" com o repositório.

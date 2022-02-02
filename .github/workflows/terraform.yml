@@ -89,3 +89,27 @@ jobs:
         id: tfapply
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: terraform -chdir=terraform apply -auto-approve
+
+      - name: Wait for Server
+        run: sleep 10
+
+      - name: Add Known Hosts
+        id: recover_known_host
+        run: echo "::set-output name=KHOST::$(ssh-keyscan -H amplifica.azmina.com.br)"
+        continue-on-error: true
+
+      - name: Install SSH Key
+        uses: shimataro/ssh-key-action@v2
+        env:
+          KHOST: ""
+        with:
+          key: ${{ secrets.SSH_PRIV_KEY }}
+          known_hosts: ${{ steps.recover_known_host.outputs.KHOST }}
+
+      - name: Copy R Crawler App
+        id: rCrawler
+        run: rsync -avz src/crawler amplifica@amplifica.azmina.com.br:/home/amplifica/
+
+      - name: Copy Shiny App
+        id: shinyapp
+        run: rsync -avz src/dashboard/* shiny@amplifica.azmina.com.br:/src/shiny-server/amplifica/

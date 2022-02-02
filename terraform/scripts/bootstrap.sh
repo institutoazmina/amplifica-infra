@@ -23,10 +23,18 @@ touch "/home/ubuntu/.ssh/authorized_keys"
 
 echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGk0PvanXFve78EL4PRq70EL+6/afnBQr3atdKYcRgjA diraol@berta" | tee -a "/root/.ssh/authorized_keys" >> "/home/ubuntu/.ssh/authorized_keys"
 echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPBvCjgYwSkK3etS8pdqEKgPjAlVIGWbsbcVbuTz630h infra+amplifica@azmina.com.br" >> "/home/ubuntu/.ssh/authorized_keys"
-
-chown ubuntu:ubuntu "/home/ubuntu/.ssh/authorized_keys"
+chown -R ubuntu:ubuntu "/home/ubuntu/.ssh"
 chmod 700 /home/ubuntu/.ssh
 chmod 600 /home/ubuntu/.ssh/authorized_keys
+
+# These passwords were generated using:
+# perl -e 'print crypt("<MY_PASSWORD>", "password"), "\n"'
+useradd -m -p 'paMixc6M.qQlA' -s /bin/bash amplifica
+mkdir -p /home/amplifica/.ssh
+echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPBvCjgYwSkK3etS8pdqEKgPjAlVIGWbsbcVbuTz630h infra+amplifica@azmina.com.br" >> "/home/amplifica/.ssh/authorized_keys"
+chown -R amplifica:amplifica "/home/amplifica/.ssh"
+chmod 700 /home/amplifica/.ssh
+chmod 600 /home/amplifica/.ssh/authorized_keys
 
 # Download rstudio server in a background task
 wget -q https://download2.rstudio.org/server/bionic/amd64/rstudio-server-2021.09.1-372-amd64.deb -O /tmp/rstudio_server_install.deb &
@@ -62,10 +70,9 @@ apt install /tmp/shiny_server_install.deb -yqq
 
 # access
 mkdir -p /home/shiny/.ssh
-chmod 700 /home/shiny/.ssh
-echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGk0PvanXFve78EL4PRq70EL+6/afnBQr3atdKYcRgjA diraol@berta" >> "/home/shiny/.ssh/authorized_keys"
 echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPBvCjgYwSkK3etS8pdqEKgPjAlVIGWbsbcVbuTz630h infra+amplifica@azmina.com.br" >> "/home/shiny/.ssh/authorized_keys"
-chown shiny:shiny "/home/shiny/.ssh/authorized_keys"
+chown -R shiny:shiny "/home/shiny/.ssh"
+chmod 700 /home/shiny/.ssh
 chmod 600 /home/shiny/.ssh/authorized_keys
 
 # Setup the shiny server
@@ -117,7 +124,3 @@ echo "www-thread-pool-size=${CPUS}" >> /etc/rstudio/rserver.conf
 echo "session-timeout-minutes=0" >> /etc/rstudio/rsession.conf
 
 systemctl restart rstudio-server.service
-
-# These passwords were generated using:
-# perl -e 'print crypt("<MY_PASSWORD>", "password"), "\n"'
-useradd -m -p 'paMixc6M.qQlA' -s /bin/bash amplifica

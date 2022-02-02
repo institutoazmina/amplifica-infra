@@ -36,16 +36,17 @@ resource "aws_lightsail_instance" "amplifica" {
     set -Ee -o pipefail
     export AWS_DEFAULT_REGION="us-east-2"
 
-    command_id=$(aws ssm send-command --document-name ${aws_ssm_document.cloud_init_wait.arn} --instance-ids ${self.id} --output text --query "Command.CommandId")
-    if ! aws ssm wait command-executed --command-id $command_id --instance-id ${self.id}; then
+    IID=$(aws lightsail get-instance --instance-name ${self.id} --query "instance.supportCode" --output text | sed 's!.*/i-/i-/g')
+    command_id=$(aws ssm send-command --document-name ${aws_ssm_document.cloud_init_wait.arn} --instance-ids $IID --output text --query "Command.CommandId")
+    if ! aws ssm wait command-executed --command-id $command_id --instance-id $IID; then
       echo "Failed to start services on instance ${self.id}!";
       echo "stdout:";
-      aws ssm get-command-invocation --command-id $command_id --instance-id ${self.id} --query StandardOutputContent;
+      aws ssm get-command-invocation --command-id $command_id --instance-id $IID --query StandardOutputContent;
       echo "stderr:";
-      aws ssm get-command-invocation --command-id $command_id --instance-id ${self.id} --query StandardErrorContent;
+      aws ssm get-command-invocation --command-id $command_id --instance-id $IID --query StandardErrorContent;
       exit 1;
     fi;
-    echo "Services started successfully on the new instance with id ${self.id}!"
+    echo "Services started successfully on the new instance with id $IID (${self.id})!"
 
     EOF
   }

@@ -106,6 +106,10 @@ jobs:
           key: ${{ secrets.SSH_PRIV_KEY }}
           known_hosts: ${{ steps.recover_known_host.outputs.KHOST }}
 
+      - name: Copy R Crawler App
+        id: rCrawler
+        run: rsync -avz src/crawler amplifica@amplifica.azmina.com.br:/home/amplifica/
+
       - name: Copy Shiny App
         id: shinyapp
         run: rsync -avz src/dashboard/* shiny@amplifica.azmina.com.br:/src/shiny-server/amplifica/

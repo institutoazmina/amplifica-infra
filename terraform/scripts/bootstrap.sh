@@ -65,7 +65,7 @@ mkdir -p /home/shiny/.ssh
 chmod 700 /home/shiny/.ssh
 echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGk0PvanXFve78EL4PRq70EL+6/afnBQr3atdKYcRgjA diraol@berta" >> "/home/shiny/.ssh/authorized_keys"
 echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPBvCjgYwSkK3etS8pdqEKgPjAlVIGWbsbcVbuTz630h infra+amplifica@azmina.com.br" >> "/home/shiny/.ssh/authorized_keys"
-chown shiny:shiny "/home/shiny/.ssh/authorized_keys"
+chown -R shiny:shiny "/home/shiny/.ssh"
 chmod 600 /home/shiny/.ssh/authorized_keys
 
 # Setup the shiny server

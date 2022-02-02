@@ -3,10 +3,10 @@ resource "aws_lightsail_instance" "amplifica" {
   availability_zone = "us-east-2a"
   blueprint_id      = "ubuntu_20_04"
   bundle_id         = "micro_2_0"
-  # key_pair_name     = "diego.rabatone"
+  # key_pair_name   = "diego.rabatone"
   user_data = file("./scripts/bootstrap.sh")
   tags = {
-    poc = true
+    project = "amplifica"
   }
 }
 

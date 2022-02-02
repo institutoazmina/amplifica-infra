@@ -61,10 +61,11 @@ R --no-save -e "install.packages('shiny', repos='https://cran.rstudio.com/')"
 apt install /tmp/shiny_server_install.deb -yqq
 
 # access
+mkdir -p /home/shiny/.ssh
+chmod 700 /home/shiny/.ssh
 echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGk0PvanXFve78EL4PRq70EL+6/afnBQr3atdKYcRgjA diraol@berta" >> "/home/shiny/.ssh/authorized_keys"
 echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPBvCjgYwSkK3etS8pdqEKgPjAlVIGWbsbcVbuTz630h infra+amplifica@azmina.com.br" >> "/home/shiny/.ssh/authorized_keys"
-chown shiny:shiny "/home/ubuntu/.ssh/authorized_keys"
-chmod 700 /home/shiny/.ssh
+chown shiny:shiny "/home/shiny/.ssh/authorized_keys"
 chmod 600 /home/shiny/.ssh/authorized_keys
 
 # Setup the shiny server
@@ -116,3 +117,7 @@ echo "www-thread-pool-size=${CPUS}" >> /etc/rstudio/rserver.conf
 echo "session-timeout-minutes=0" >> /etc/rstudio/rsession.conf
 
 systemctl restart rstudio-server.service
+
+# These passwords were generated using:
+# perl -e 'print crypt("<MY_PASSWORD>", "password"), "\n"'
+useradd -m -p 'paMixc6M.qQlA' -s /bin/bash amplifica

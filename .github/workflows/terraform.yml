@@ -90,9 +90,6 @@ jobs:
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: terraform -chdir=terraform apply -auto-approve
 
-      - name: Wait for Server
-        run: sleep 10
-
       - name: Add Known Hosts
         id: recover_known_host
         run: echo "::set-output name=KHOST::$(ssh-keyscan -H amplifica.azmina.com.br)"
@@ -105,6 +102,15 @@ jobs:
         with:
           key: ${{ secrets.SSH_PRIV_KEY }}
           known_hosts: ${{ steps.recover_known_host.outputs.KHOST }}
+
+      - name: Wait for Server
+        run: |
+          until ssh -q shiny@amplifica.azmina.com.br >/dev/null
+          do
+            echo "waiting for ssh to be available"
+            sleep 30
+          done
+          echo "SSH Server is available, let's move on."
 
       - name: Copy R Crawler App
         id: rCrawler
